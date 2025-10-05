@@ -41,22 +41,23 @@ app.use(cors({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api', limiter);
 
-// Stripe webhook needs raw body BEFORE json parsing
+// Stripe webhook needs raw body - must come BEFORE json parsing
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
-// Middleware
+// JSON parsing for all other routes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Make Socket.IO available to routes
 app.use((req, res, next) => {
   req.io = io;
+  req.app.locals.io = io;
   next();
 });
 

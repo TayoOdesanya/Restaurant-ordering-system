@@ -19,24 +19,27 @@ const AdminDashboard = () => {
   })
   const navigate = useNavigate()
 
+  // Predefined category options
+  const CATEGORIES = ['Bowls', 'Sides', 'Dips', 'Desserts']
+
   useEffect(() => {
-  const initializeAuth = async () => {
-    const token = localStorage.getItem('adminToken')
-    if (!token) {
-      navigate('/admin/login')
-      return
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('adminToken')
+      if (!token) {
+        navigate('/admin/login')
+        return
+      }
+      
+      // Set the authorization header before making API calls
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      axios.defaults.baseURL = 'http://localhost:3001/api'
+      
+      // Now fetch the data
+      await fetchData()
     }
     
-    // Set the authorization header before making API calls
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-    axios.defaults.baseURL = 'http://localhost:3001/api'
-    
-    // Now fetch the data
-    await fetchData()
-  }
-  
-  initializeAuth()
-}, [navigate])
+    initializeAuth()
+  }, [navigate])
 
   const fetchData = async () => {
     try {
@@ -225,6 +228,11 @@ const AdminDashboard = () => {
                 )}
                 
                 <h3 className="font-semibold text-lg mb-1">{item.name}</h3>
+                {item.category && (
+                  <span className="inline-block mb-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                    {item.category}
+                  </span>
+                )}
                 <p className="text-gray-600 text-sm mb-2">{item.description}</p>
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-lg font-bold text-blue-600">£{parseFloat(item.price).toFixed(2)}</span>
@@ -264,60 +272,97 @@ const AdminDashboard = () => {
             </h3>
             
             <form onSubmit={handleSubmit} className="space-y-4">
-              <input
-                type="text"
-                placeholder="Item name"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className="input-field"
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Item Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Caesar Salad Bowl"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="input-field"
+                  required
+                />
+              </div>
               
-              <textarea
-                placeholder="Description"
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                className="input-field"
-                rows="3"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Brief description of the item"
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  className="input-field"
+                  rows="3"
+                />
+              </div>
               
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Price"
-                value={formData.price}
-                onChange={(e) => setFormData({...formData, price: e.target.value})}
-                className="input-field"
-                required
-              />
-              
-              <input
-                type="text"
-                placeholder="Category"
-                value={formData.category}
-                onChange={(e) => setFormData({...formData, category: e.target.value})}
-                className="input-field"
-              />
-              
-              <input
-                type="url"
-                placeholder="Image URL"
-                value={formData.imageUrl}
-                onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
-                className="input-field"
-              />
-              
-              {!editingItem && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Price (£) *
+                </label>
                 <input
                   type="number"
-                  placeholder="Initial stock"
-                  value={formData.stock}
-                  onChange={(e) => setFormData({...formData, stock: e.target.value})}
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.price}
+                  onChange={(e) => setFormData({...formData, price: e.target.value})}
+                  className="input-field"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category *
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Select a category</option>
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Image URL
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
                   className="input-field"
                 />
+              </div>
+              
+              {!editingItem && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Initial Stock *
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.stock}
+                    onChange={(e) => setFormData({...formData, stock: e.target.value})}
+                    className="input-field"
+                    min="0"
+                  />
+                </div>
               )}
 
-              <div className="flex justify-end space-x-3">
+              <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={resetForm} className="btn-secondary">
                   Cancel
                 </button>

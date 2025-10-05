@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react'
 import { ShoppingCart, Trash2, Plus, Minus } from 'lucide-react'
 import axios from 'axios'
 import { useCart } from '../context/CartContext'
+import { useNavigate } from 'react-router-dom'
 
 const Menu = () => {
   const [menuItems, setMenuItems] = useState([])
+  const [categories, setCategories] = useState([])
+  const [selectedCategory, setSelectedCategory] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showCart, setShowCart] = useState(false)
-  const [checkoutLoading, setCheckoutLoading] = useState(false)
   const { 
     addItem, 
     getItemCount, 
@@ -18,18 +20,41 @@ const Menu = () => {
     updateQuantity,
     tableNumber,
     setTableNumber,
+    specialInstructions,
+    setSpecialInstructions,
     clearCart
   } = useCart()
 
+  const navigate = useNavigate()
+
   useEffect(() => {
+    // Set base URL once
+    axios.defaults.baseURL = 'http://localhost:3001/api'
+    
+    fetchCategories()
     fetchMenu()
   }, [])
 
-  const fetchMenu = async () => {
+  const fetchCategories = async () => {
     try {
-      axios.defaults.baseURL = 'http://localhost:3001/api'
-      const response = await axios.get('/menu')
+      const response = await axios.get('/menu/categories')
+      setCategories(response.data)
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+    }
+  }
+
+  const fetchMenu = async (category = null) => {
+    try {
+      setLoading(true)
+      
+      const url = category && category !== 'all' 
+        ? `/menu?category=${encodeURIComponent(category)}`
+        : '/menu'
+      
+      const response = await axios.get(url)
       setMenuItems(response.data)
+      setError(null)
     } catch (error) {
       console.error('Error fetching menu:', error)
       setError('Failed to load menu')
@@ -38,12 +63,17 @@ const Menu = () => {
     }
   }
 
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category)
+    fetchMenu(category === 'all' ? null : category)
+  }
+
   const handleAddToCart = (item) => {
     addItem(item, 1)
     setShowCart(true)
   }
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (!tableNumber || parseInt(tableNumber) <= 0) {
       alert('Please enter a valid table number')
       return
@@ -54,20 +84,10 @@ const Menu = () => {
       return
     }
 
-    try {
-      setCheckoutLoading(true)
-      alert(`Order placed for Table ${tableNumber}!\nTotal: $${getTotal().toFixed(2)}\n\nIn a real system, this would redirect to Stripe payment.`)
-      clearCart()
-      setShowCart(false)
-    } catch (error) {
-      console.error('Checkout error:', error)
-      alert('Checkout failed. Please try again.')
-    } finally {
-      setCheckoutLoading(false)
-    }
+    navigate('/checkout')
   }
 
-  if (loading) {
+  if (loading && menuItems.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -78,12 +98,12 @@ const Menu = () => {
     )
   }
 
-  if (error) {
+  if (error && menuItems.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-600 text-lg font-semibold mb-2">{error}</div>
-          <button onClick={fetchMenu} className="btn-primary">Try Again</button>
+          <button onClick={() => fetchMenu()} className="btn-primary">Try Again</button>
         </div>
       </div>
     )
@@ -117,52 +137,171 @@ const Menu = () => {
         </div>
       </header>
 
-      {/* Menu Items */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {menuItems.map((item) => (
-            <div key={item.id} className="card">
-              {item.imageUrl && (
-                <div className="aspect-video overflow-hidden">
-                  <img 
-                    src={item.imageUrl} 
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'
-                    }}
-                  />
-                </div>
-              )}
+      {/* Category Filter */}
+      {categories.length > 0 && (
+        <div className="bg-white border-b shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleCategoryChange('all')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedCategory === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All Items
+              </button>
               
-              <div className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                  <div className="text-lg font-bold text-blue-600">
-                    ${parseFloat(item.price).toFixed(2)}
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => handleCategoryChange(category)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    selectedCategory === category
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Menu Items */}
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        {menuItems.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600 text-lg">
+              {selectedCategory === 'all' 
+                ? 'No items available at the moment' 
+                : `No items in ${selectedCategory} category`
+              }
+            </p>
+          </div>
+        ) : selectedCategory === 'all' ? (
+          // Show items grouped by category when "All Items" is selected
+          <div className="space-y-12">
+            {['Bowls', 'Sides', 'Desserts', 'Dips'].map((categoryName) => {
+              const categoryItems = menuItems.filter(item => item.category === categoryName)
+              
+              if (categoryItems.length === 0) return null
+              
+              return (
+                <div key={categoryName}>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-blue-600">
+                    {categoryName}
+                  </h2>
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {categoryItems.map((item) => (
+                      <div key={item.id} className="card hover:shadow-lg transition-shadow">
+                        {item.imageUrl && (
+                          <div className="aspect-video overflow-hidden rounded-t-lg">
+                            <img 
+                              src={item.imageUrl} 
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'
+                              }}
+                            />
+                          </div>
+                        )}
+                        
+                        <div className="p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
+                              <span className="inline-block mt-1 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                                {item.category}
+                              </span>
+                            </div>
+                            <div className="text-lg font-bold text-blue-600 ml-2">
+                              £{parseFloat(item.price).toFixed(2)}
+                            </div>
+                          </div>
+                          
+                          {item.description && (
+                            <p className="text-gray-600 text-sm mb-3">{item.description}</p>
+                          )}
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500">
+                              Stock: {item.inventory?.quantityAvailable || 0}
+                            </span>
+                            <button 
+                              onClick={() => handleAddToCart(item)}
+                              className="btn-primary"
+                              disabled={!item.inventory || item.inventory.quantityAvailable === 0}
+                            >
+                              Add to Cart
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                
-                {item.description && (
-                  <p className="text-gray-600 text-sm mb-3">{item.description}</p>
+              )
+            })}
+          </div>
+        ) : (
+          // Show items in grid when a specific category is selected
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {menuItems.map((item) => (
+              <div key={item.id} className="card hover:shadow-lg transition-shadow">
+                {item.imageUrl && (
+                  <div className="aspect-video overflow-hidden rounded-t-lg">
+                    <img 
+                      src={item.imageUrl} 
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'
+                      }}
+                    />
+                  </div>
                 )}
+                
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
+                      {item.category && (
+                        <span className="inline-block mt-1 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                          {item.category}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-lg font-bold text-blue-600 ml-2">
+                      £{parseFloat(item.price).toFixed(2)}
+                    </div>
+                  </div>
+                  
+                  {item.description && (
+                    <p className="text-gray-600 text-sm mb-3">{item.description}</p>
+                  )}
 
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">
-                    Stock: {item.inventory?.quantityAvailable || 0}
-                  </span>
-                  <button 
-                    onClick={() => handleAddToCart(item)}
-                    className="btn-primary"
-                    disabled={!item.inventory || item.inventory.quantityAvailable === 0}
-                  >
-                    Add to Cart
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">
+                      Stock: {item.inventory?.quantityAvailable || 0}
+                    </span>
+                    <button 
+                      onClick={() => handleAddToCart(item)}
+                      className="btn-primary"
+                      disabled={!item.inventory || item.inventory.quantityAvailable === 0}
+                    >
+                      Add to Cart
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Cart Sidebar */}
@@ -192,7 +331,7 @@ const Menu = () => {
                         <div className="flex-1">
                           <h3 className="font-semibold">{item.name}</h3>
                           <p className="text-sm text-gray-600">
-                            ${parseFloat(item.price).toFixed(2)} each
+                            £{parseFloat(item.price).toFixed(2)} each
                           </p>
                         </div>
                         <button
@@ -225,7 +364,7 @@ const Menu = () => {
                         </div>
                         
                         <div className="font-semibold text-lg">
-                          ${(parseFloat(item.price) * item.quantity).toFixed(2)}
+                          £{(parseFloat(item.price) * item.quantity).toFixed(2)}
                         </div>
                       </div>
                     </div>
@@ -235,7 +374,7 @@ const Menu = () => {
                 <div className="border-t pt-4 mb-6">
                   <div className="flex justify-between items-center text-lg font-bold">
                     <span>Total:</span>
-                    <span>${getTotal().toFixed(2)}</span>
+                    <span>£{getTotal().toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -255,13 +394,30 @@ const Menu = () => {
                       required
                     />
                   </div>
+
+                  <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Special Instructions (Optional)
+                  </label>
+                  <textarea
+                    placeholder="e.g., No dairy, vegan option, extra spicy, allergies..."
+                    value={specialInstructions}
+                    onChange={(e) => setSpecialInstructions(e.target.value)}
+                    className="input-field"
+                    rows="3"
+                    maxLength="500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {specialInstructions.length}/500 characters
+                  </p>
+                </div>
                   
                   <button 
                     onClick={handleCheckout}
-                    disabled={checkoutLoading || !tableNumber || parseInt(tableNumber) <= 0}
+                    disabled={!tableNumber || parseInt(tableNumber) <= 0}
                     className="btn-primary w-full py-3 disabled:opacity-50"
                   >
-                    {checkoutLoading ? 'Processing...' : 'Proceed to Checkout'}
+                    Proceed to Checkout
                   </button>
                   
                   <button 

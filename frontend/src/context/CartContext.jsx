@@ -13,6 +13,7 @@ export const useCart = () => {
 export const CartProvider = ({ children }) => {
   const [items, setItems] = useState([])
   const [tableNumber, setTableNumber] = useState('')
+  const [specialInstructions, setSpecialInstructions] = useState('')
 
   const addItem = (menuItem, quantity = 1) => {
     setItems(currentItems => {
@@ -54,6 +55,7 @@ export const CartProvider = ({ children }) => {
   const clearCart = () => {
     setItems([])
     setTableNumber('')
+    setSpecialInstructions('')
   }
 
   const getItemCount = () => {
@@ -75,7 +77,9 @@ export const CartProvider = ({ children }) => {
   const value = {
     items,
     tableNumber,
+    specialInstructions,
     setTableNumber,
+    setSpecialInstructions,
     addItem,
     updateQuantity,
     removeItem,

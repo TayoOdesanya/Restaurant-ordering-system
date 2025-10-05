@@ -91,4 +91,69 @@ router.get('/kitchen', async (req, res, next) => {
   }
 });
 
+// Update order status - Kitchen dashboard (no auth required for kitchen staff)
+router.patch('/:orderId/status', async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    const validStatuses = ['paid', 'preparing', 'ready', 'delivered', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        error: 'Invalid status. Must be one of: ' + validStatuses.join(', ') 
+      });
+    }
+
+    // Validate orderId is a number
+    const orderIdNum = parseInt(orderId);
+    if (isNaN(orderIdNum)) {
+      return res.status(400).json({ error: 'Invalid order ID' });
+    }
+
+    // Update the order
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderIdNum },
+      data: { 
+        status,
+        updatedAt: new Date()
+      },
+      include: {
+        orderItems: {
+          include: {
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                price: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Emit Socket.IO event to all connected kitchen dashboards
+    req.io.to('kitchen').emit('order-status-updated', {
+      orderId: updatedOrder.id,
+      status: updatedOrder.status,
+      order: updatedOrder
+    });
+
+    console.log(`✅ Order #${orderId} status updated to: ${status}`);
+
+    res.json({
+      success: true,
+      order: updatedOrder
+    });
+
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    console.error('Error updating order status:', error);
+    next(error);
+  }
+});
+
 export default router;

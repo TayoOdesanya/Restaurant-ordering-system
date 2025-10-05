@@ -10,14 +10,13 @@ const KitchenDashboard = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [socket, setSocket] = useState(null)
-  const [viewMode, setViewMode] = useState('table') // 'table' or 'chronological'
+  const [viewMode, setViewMode] = useState('table')
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [lastUpdate, setLastUpdate] = useState(new Date())
   const [autoRefresh, setAutoRefresh] = useState(true)
   const mountedRef = useRef(true)
   const refreshIntervalRef = useRef(null)
 
-  // Memoized fetch function to prevent unnecessary re-renders
   const fetchOrders = useCallback(async () => {
     try {
       if (mountedRef.current) setLoading(true)
@@ -36,7 +35,6 @@ const KitchenDashboard = () => {
     }
   }, [])
 
-  // Enhanced socket initialization with better error handling
   const initializeSocket = useCallback(() => {
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
     const newSocket = io(API_URL, {
@@ -55,7 +53,7 @@ const KitchenDashboard = () => {
     newSocket.on('reconnect', () => {
       console.log('Reconnected to kitchen updates')
       setConnectionStatus('connected')
-      fetchOrders() // Refresh data on reconnection
+      fetchOrders()
     })
 
     newSocket.on('disconnect', () => {
@@ -71,8 +69,7 @@ const KitchenDashboard = () => {
     newSocket.on('new-order', (data) => {
       console.log('New order received:', data)
       if (mountedRef.current) {
-        fetchOrders() // Refresh orders list
-        // Optional: Show notification or play sound
+        fetchOrders()
         showOrderNotification('New order received!', 'success')
       }
     })
@@ -80,7 +77,6 @@ const KitchenDashboard = () => {
     newSocket.on('order-status-updated', (data) => {
       console.log('Order status updated:', data)
       if (mountedRef.current) {
-        // Update specific order instead of fetching all orders for better performance
         updateOrderInState(data.orderId, data.status)
       }
     })
@@ -88,14 +84,12 @@ const KitchenDashboard = () => {
     setSocket(newSocket)
   }, [fetchOrders])
 
-  // Function to update specific order in state without full refresh
   const updateOrderInState = useCallback((orderId, newStatus) => {
     setOrders(prevOrders => {
       const updatedOrders = prevOrders.map(order => 
         order.id === orderId ? { ...order, status: newStatus } : order
       )
       
-      // Update ordersByTable as well
       const newOrdersByTable = {}
       updatedOrders.forEach(order => {
         if (!newOrdersByTable[order.tableNumber]) {
@@ -109,26 +103,22 @@ const KitchenDashboard = () => {
     })
   }, [])
 
-  // Show notification function (you can enhance this with a toast library)
   const showOrderNotification = (message, type = 'info') => {
-    // Simple notification - you could replace this with a proper toast library
     console.log(`Notification (${type}): ${message}`)
     
-    // Optional: Add browser notification if permission granted
     if (Notification.permission === 'granted') {
       new Notification('Kitchen Dashboard', {
         body: message,
-        icon: '/kitchen-icon.png' // Add your icon
+        icon: '/kitchen-icon.png'
       })
     }
   }
 
-  // Auto-refresh functionality
   useEffect(() => {
     if (autoRefresh) {
       refreshIntervalRef.current = setInterval(() => {
         fetchOrders()
-      }, 30000) // Refresh every 30 seconds
+      }, 30000)
     } else {
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current)
@@ -145,7 +135,6 @@ const KitchenDashboard = () => {
   useEffect(() => {
     mountedRef.current = true
     
-    // Request notification permission
     if (Notification.permission === 'default') {
       Notification.requestPermission()
     }
@@ -164,23 +153,19 @@ const KitchenDashboard = () => {
     }
   }, [fetchOrders, initializeSocket])
 
-  // Enhanced order status update with optimistic updates
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
-      // Optimistic update
       updateOrderInState(orderId, newStatus)
       
       await axios.patch(`http://localhost:3001/api/orders/${orderId}/status`, { status: newStatus })
       
       showOrderNotification(`Order #${orderId} marked as ${newStatus}`, 'success')
       
-      // Emit socket event for real-time updates to other clients
       if (socket) {
         socket.emit('order-status-changed', { orderId, status: newStatus })
       }
     } catch (error) {
       console.error('Error updating order status:', error)
-      // Revert optimistic update on error
       fetchOrders()
       setError('Failed to update order status')
       setTimeout(() => setError(null), 3000)
@@ -218,7 +203,6 @@ const KitchenDashboard = () => {
     return `${diffHours}h ${diffMinutes % 60}m ago`
   }
 
-  // Get connection status color and icon
   const getConnectionDisplay = () => {
     switch (connectionStatus) {
       case 'connected':
@@ -277,7 +261,6 @@ const KitchenDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Error Banner */}
       {error && (
         <div className="bg-error-100 border border-error-400 text-error-700 px-4 py-3 rounded mb-4">
           <div className="flex items-center justify-between">
@@ -289,7 +272,6 @@ const KitchenDashboard = () => {
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Kitchen Dashboard</h1>
@@ -299,13 +281,11 @@ const KitchenDashboard = () => {
         </div>
         
         <div className="flex items-center space-x-4">
-          {/* Connection Status */}
           <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${connectionDisplay.color}`}>
             {connectionDisplay.icon}
             <span className="text-sm font-medium">{connectionDisplay.text}</span>
           </div>
           
-          {/* Auto Refresh Toggle */}
           <label className="flex items-center space-x-2">
             <input
               type="checkbox"
@@ -316,7 +296,6 @@ const KitchenDashboard = () => {
             <span className="text-sm text-gray-700">Auto refresh</span>
           </label>
           
-          {/* Manual Refresh Button */}
           <button 
             onClick={fetchOrders}
             disabled={loading}
@@ -328,7 +307,6 @@ const KitchenDashboard = () => {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-md">
           <div className="flex items-center">
@@ -383,7 +361,6 @@ const KitchenDashboard = () => {
         </div>
       </div>
 
-      {/* Active Tables Summary */}
       {activeOrders.length > 0 && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -436,7 +413,6 @@ const KitchenDashboard = () => {
         </div>
       )}
 
-      {/* View Toggle */}
       <div className="mb-6">
         <div className="flex space-x-4">
           <button
@@ -464,7 +440,6 @@ const KitchenDashboard = () => {
         </div>
       </div>
 
-      {/* Orders Display - keeping your existing structure but with enhanced loading states */}
       {activeOrders.length === 0 ? (
         <div className="text-center py-12">
           <CheckCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -472,7 +447,6 @@ const KitchenDashboard = () => {
           <p className="text-gray-600">No active orders at the moment</p>
         </div>
       ) : viewMode === 'table' ? (
-        /* Table-grouped view - your existing code with loading overlay */
         <div className={`grid gap-6 lg:grid-cols-2 xl:grid-cols-3 ${loading ? 'opacity-75' : ''}`}>
           {Object.entries(ordersByTable)
             .filter(([_, tableOrders]) => 
@@ -513,27 +487,41 @@ const KitchenDashboard = () => {
                           </div>
                         </div>
 
-                        {/* Order Items */}
                         <div className="space-y-2 mb-4">
                           {order.orderItems.map((item) => (
-                            <div key={item.id} className="flex justify-between text-sm">
+                            <div key={item.id} className="text-sm">
                               <span>{item.quantity}x {item.menuItem.name}</span>
-                              <span className="font-medium">
-                                ${parseFloat(item.subtotal).toFixed(2)}
-                              </span>
                             </div>
                           ))}
                         </div>
 
-                        <div className="border-t pt-3">
-                          <div className="flex justify-between items-center mb-3">
-                            <span className="font-semibold">Total</span>
-                            <span className="font-bold text-primary-600">
-                              ${parseFloat(order.totalAmount).toFixed(2)}
-                            </span>
+                        {order.specialInstructions && (
+                          <div className="mb-4 p-3 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
+                            <div className="flex items-start">
+                              <svg 
+                                className="h-5 w-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" 
+                                fill="currentColor" 
+                                viewBox="0 0 20 20"
+                              >
+                                <path 
+                                  fillRule="evenodd" 
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" 
+                                  clipRule="evenodd" 
+                                />
+                              </svg>
+                              <div className="flex-1">
+                                <p className="text-xs font-bold text-yellow-800 uppercase mb-1">
+                                  Special Instructions:
+                                </p>
+                                <p className="text-sm text-yellow-900 font-medium whitespace-pre-wrap">
+                                  {order.specialInstructions}
+                                </p>
+                              </div>
+                            </div>
                           </div>
+                        )}
 
-                          {/* Status Update Buttons */}
+                        <div className="border-t pt-3">
                           <div className="flex space-x-2">
                             {order.status === 'paid' && (
                               <button
@@ -570,7 +558,6 @@ const KitchenDashboard = () => {
             ))}
         </div>
       ) : (
-        /* Chronological view - your existing code */
         <div className={`space-y-4 ${loading ? 'opacity-75' : ''}`}>
           {activeOrders
             .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
@@ -599,30 +586,43 @@ const KitchenDashboard = () => {
                   </div>
                 </div>
 
-                {/* Order Items */}
-                <div className="grid md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Items:</h4>
-                    <div className="space-y-1">
-                      {order.orderItems.map((item) => (
-                        <div key={item.id} className="flex justify-between text-sm">
-                          <span className="font-medium">{item.quantity}x {item.menuItem.name}</span>
-                          <span>${parseFloat(item.subtotal).toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-primary-600 mb-2">
-                      ${parseFloat(order.totalAmount).toFixed(2)}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {order.orderItems.length} item{order.orderItems.length !== 1 ? 's' : ''}
-                    </div>
+                <div className="mb-4">
+                  <h4 className="font-semibold text-gray-900 mb-2">Items:</h4>
+                  <div className="space-y-1">
+                    {order.orderItems.map((item) => (
+                      <div key={item.id} className="text-sm">
+                        <span className="font-medium">{item.quantity}x {item.menuItem.name}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                {/* Status Update Buttons */}
+                {order.specialInstructions && (
+                  <div className="mb-4 p-3 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
+                    <div className="flex items-start">
+                      <svg 
+                        className="h-5 w-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" 
+                        fill="currentColor" 
+                        viewBox="0 0 20 20"
+                      >
+                        <path 
+                          fillRule="evenodd" 
+                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" 
+                          clipRule="evenodd" 
+                        />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-yellow-800 uppercase mb-1">
+                          Special Instructions:
+                        </p>
+                        <p className="text-sm text-yellow-900 font-medium whitespace-pre-wrap">
+                          {order.specialInstructions}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex space-x-2">
                   {order.status === 'paid' && (
                     <button
